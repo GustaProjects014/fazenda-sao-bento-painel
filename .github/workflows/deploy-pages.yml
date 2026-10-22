@@ -1,0 +1,54 @@
+name: Publicar painel no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Preparar arquivos do painel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Validar código JavaScript
+        run: node --check admin.js
+
+      - name: Conferir arquivos da página
+        run: |
+          test -s index.html
+          test -s admin.css
+          test -s admin.js
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Preparar pacote estático
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+  deploy:
+    name: Publicar endereço do painel
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Implantar página
+        id: deployment
+        uses: actions/deploy-pages@v4
