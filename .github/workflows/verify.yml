@@ -1,0 +1,34 @@
+name: Verificar painel estático
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar JavaScript
+        run: node --check admin.js
+      - name: Verificar arquivos de entrada
+        run: |
+          test -s index.html
+          test -s admin.css
+          test -s admin.js
+          grep -q 'src="./admin.js"' index.html
+          grep -q 'href="./admin.css"' index.html
+          grep -q 'noindex,nofollow' index.html
+      - name: Verificar ausência de credenciais privadas
+        run: |
+          if grep -En '(SUPABASE_SERVICE_ROLE_KEY|CVCRM_TOKEN|sk_live_[A-Za-z0-9]+)' index.html admin.js admin.css; then
+            echo 'Encontrada referência suspeita a um segredo.'
+            exit 1
+          fi
