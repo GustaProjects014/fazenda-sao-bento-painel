@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow,noarchive"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://xzjjlykhumkrfmbvuvnt.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"/>
+  <title>Administração de lotes — Fazenda São Bento</title>
+  <link rel="stylesheet" href="./admin.css"/>
+  <script type="module" src="./admin.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header class="brand"><span class="brand-mark">FSB</span><div><strong>FAZENDA SÃO BENTO</strong><small>Área privada · Atualização de lotes</small></div></header>
+    <section class="intro"><span class="eyebrow">CONTROLE DE DISPONIBILIDADE</span><h1>Gerenciamento do mapa</h1><p>Importe um arquivo JSON do mapa oficial do CV CRM. Confira a prévia e publique os lotes no Supabase, sem alterar o site público nem compartilhar seu acesso de corretor.</p></section>
+    <section class="card" id="login-panel">
+      <div class="card-title"><span class="circle">🔒</span><h2>Entrar como administrador</h2></div>
+      <form id="login-form" class="fields">
+        <label for="email">E-mail cadastrado no Supabase</label>
+        <input id="email" type="email" autocomplete="username" placeholder="seu@email.com" required maxlength="250"/>
+        <label for="password">Senha</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="Senha que você criou no Supabase" required/>
+        <button class="btn primary" id="login-btn" type="submit">Entrar no painel</button>
+      </form>
+      <p class="small">Este acesso é diferente do login de corretor do CV CRM. Apenas contas autorizadas conseguem publicar arquivos.</p>
+    </section>
+    <section class="card hidden" id="import-panel">
+      <div class="toolbar"><div class="card-title"><span class="circle">↥</span><h2>Importar disponibilidade</h2></div><button id="logout-btn" class="btn outline small-button" type="button">Sair</button></div>
+      <div class="current"><span class="muted">ÚLTIMA VERSÃO PUBLICADA</span><strong id="latest-count">Verificando...</strong><small id="latest-date">—</small></div>
+      <div class="drop"><div class="drop-icon">↥</div><strong>Selecione o arquivo exportado do CV CRM</strong><p>Resposta JSON de <code>map/50/servidor</code> · aceita <code>.json</code> ou <code>.txt</code>, até 1,5 MB.</p><input id="upload" type="file" accept=".json,.txt,application/json,text/plain"/><span id="selected" class="muted"></span></div>
+      <button id="validate-btn" class="btn outline" type="button" disabled>Validar arquivo e conferir lotes</button>
+      <div class="review hidden" id="review-panel">
+        <h3>Prévia da importação</h3><div id="summary-stats" class="stats"></div>
+        <h4>Situações interpretadas</h4><div id="summary-types" class="types"></div>
+        <p class="warning">A disponibilidade depende da data do arquivo. Marcadores vermelhos serão identificados como <b>Indisponível</b> (não necessariamente vendido), e cinzas como <b>A confirmar</b>. A posição dos marcadores é uma calibração provisória.</p>
+        <label class="check"><input id="confirm" type="checkbox"/><span>Confirmo que tenho autorização para publicar a disponibilidade comercial e que conferi o arquivo atualizado.</span></label>
+        <button id="publish-btn" type="button" class="btn primary" disabled>Publicar todos os lotes no Supabase</button>
+      </div>
+    </section>
+    <p id="notice" class="notice hidden" role="status" aria-live="polite"></p>
+    <footer>O mapa do site apresenta a data da última atualização. Nenhum preço ou informação pessoal de compradores é publicado. <a href="https://supabase.com/dashboard/project/xzjjlykhumkrfmbvuvnt/editor" target="_blank" rel="noopener noreferrer">Abrir Supabase ↗</a></footer>
+  </main>
+</body>
+</html>
