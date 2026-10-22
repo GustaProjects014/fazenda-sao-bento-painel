@@ -28,7 +28,12 @@ O GitHub Pages hospeda os arquivos estáticos (`index.html`, `admin.css`, `admin
 - **Leitura pública:** Edge Function `lot-map-public`.
 - **Sem sincronização automática:** os status mudam apenas quando você envia um novo JSON; informações podem ficar desatualizadas.
 - **Atenção à planta:** o posicionamento dos marcadores ainda usa uma calibração provisória e precisa ser validado sobre a mesma imagem usada no site antes de divulgar os status como geograficamente corretos.
-- **Legenda conservadora:** a cor vermelha é exibida como `Indisponível`, e não como `Vendido`, até confirmação do significado do status.
+- **Legenda confirmada:** código `3` / cor vermelha `EC5D59` representa **Vendido**. O backend grava `vendido`, e a prévia mostra “Vendidos (vermelho)”.
 - **Privacidade:** não compartilhar nem versionar senhas, tokens, cookies, arquivos completos de clientes ou relatórios privados do CV CRM. O painel não publica dados pessoais dos compradores.
 
 Este repositório guarda apenas código do painel, enquanto o banco, os privilégios e a publicação do snapshot continuam no Supabase. Para o uso da imagem e dos dados comerciais, mantenha a autorização do responsável pelo empreendimento.
+
+
+## Correção de classificação — 22/10/2026
+
+O usuário confirmou que os lotes vermelhos mostrados anteriormente como “Bloqueados/Indisponíveis” são **Vendidos**. O backend `map-import-admin` está atualizado e 73 registros antigos foram corrigidos no Supabase. Os lotes azuis continuam “Em processo” e os cinzas “A confirmar”.

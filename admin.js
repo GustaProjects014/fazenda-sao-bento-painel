@@ -2,7 +2,7 @@ const apiBase = "https://xzjjlykhumkrfmbvuvnt.supabase.co";
 const apiKey = "sb_publishable_4k8WynAr9a21246UIrTv3A_DB8zjpvJ"; // Chave pública (NÃO é service_role).
 const $ = id => document.getElementById(id);
 const state = { token:null, file:null, data:null, summary:null, busy:false };
-const labels={disponivel:"Disponíveis (verde)",bloqueado:"Indisponíveis (vermelho)",em_processo:"Em processo (azul)",desconhecido:"A confirmar (cinza)"};
+const labels={disponivel:"Disponíveis (verde)",vendido:"Vendidos (vermelho)",em_processo:"Em processo (azul)",desconhecido:"A confirmar (cinza)"};
 function busy(value){state.busy=value;["login-btn","validate-btn","publish-btn"].forEach(id=>{const btn=$(id);if(btn)btn.disabled=value || (id==="validate-btn"&&!state.data) || (id==="publish-btn"&&(!state.summary||!$("confirm").checked));});}
 function say(message,error=false){const el=$("notice");el.textContent=message;el.classList.remove("hidden");el.classList.toggle("error",error);}
 function clearNotice(){$("notice").textContent="";$("notice").classList.add("hidden");}
