@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173e34">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="São Bento Leads">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://xzjjlykhumkrfmbvuvnt.supabase.co; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Gestão de Leads — Fazenda São Bento</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./apple-icon.svg">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<div class="layout">
+  <header class="header"><div class="mark">SB</div><div class="brand"><span>FAZENDA SÃO BENTO</span><strong>Gestão de Leads</strong></div><button id="logout" class="link-button hidden" type="button">Sair ↗</button></header>
+  <section id="login" class="login card">
+    <div class="bigicon">⌂</div><p class="eyebrow">ÁREA RESTRITA</p><h1>Seus próximos clientes,<br>em um só lugar.</h1><p class="muted">Entre com seu e-mail e senha de administrador para acompanhar os interessados.</p>
+    <form id="login-form">
+      <label for="email">E-mail</label><input id="email" type="email" required autocomplete="username" spellcheck="false" placeholder="seu@email.com">
+      <label for="password">Senha</label><input id="password" type="password" required autocomplete="current-password" placeholder="Sua senha">
+      <button id="login-button" class="primary full" type="submit">Entrar no painel</button>
+    </form>
+    <p class="security">♧ Acesso permitido apenas a administradores autorizados.</p>
+  </section>
+  <section id="dashboard" class="hidden">
+    <div class="welcome"><div><p class="eyebrow">PAINEL COMERCIAL</p><h1>Interessados</h1><p class="muted">Todos os cadastros enviados pelo site.</p></div><button class="refresh" id="refresh" type="button" aria-label="Atualizar cadastros" title="Atualizar">↻</button></div>
+    <div class="stats">
+      <article class="stat"><small>Total de leads</small><strong id="count-total">—</strong></article>
+      <article class="stat"><small>Novos</small><strong id="count-new">—</strong></article>
+      <article class="stat"><small>Em atendimento</small><strong id="count-work">—</strong></article>
+    </div>
+    <nav class="tabs"><button id="tab-leads" type="button" class="active">▤ Cadastros</button><button id="tab-alerts" type="button">♧ Avisos</button></nav>
+    <section id="leads-section"><div class="filters"><label class="sr-only" for="search">Buscar cadastros</label><input id="search" placeholder="Buscar nome, telefone ou e-mail" type="search"><label class="sr-only" for="filter">Filtrar status</label><select id="filter"><option value="">Todos os status</option><option value="novo">Novo</option><option value="em_atendimento">Em atendimento</option><option value="visita_agendada">Visita agendada</option><option value="negociacao">Negociação</option><option value="convertido">Convertido</option><option value="encerrado">Encerrado</option></select></div><div id="lead-list" class="lead-list" aria-live="polite"></div><p class="small muted" id="last-sync"></p></section>
+    <section id="alerts-section" class="hidden card alerts"><div class="bigicon">♧</div><h2>Alertas de novos cadastros</h2><p>O painel consulta novos interessados automaticamente enquanto estiver aberto. Novos clientes aparecem no topo da lista e um aviso aparece na tela.</p><p><b>Notificações na tela bloqueada do iPhone:</b> a entrega push com o painel fechado ainda depende da configuração do serviço de envio no servidor. Esta etapa não está ativa.</p><div class="tip"><b>Adicionar ao iPhone</b><p>Abra este endereço pelo Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”. Depois, abra pelo ícone criado.</p></div></section>
+  </section>
+  <p id="notice" class="notice hidden" role="status" aria-live="polite"></p>
+  <footer>Fazenda São Bento · Acesso privado aos dados de interessados.</footer>
+</div>
+</body>
+</html>
