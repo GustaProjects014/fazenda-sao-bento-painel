@@ -82,14 +82,36 @@ async function showPushPanel(){
     await preparePush();
     pushButton.disabled=false;
     pushButton.textContent="Ativar notificações neste iPhone";
-    notice("Configuração pronta. Toque no botão para autorizar as notificações.");
+    notice(pushReady?.existing ? "Este aparelho já possui uma inscrição Web Push. Clique em Enviar notificação de teste." : "Configuração pronta. Toque no botão para autorizar as notificações.");
   }catch(error){
     pushButton.textContent="Tentar preparar novamente";
     pushButton.disabled=false;
     pushReady=null;
     pushError(error,"preparação");
     // O botão passa a repetir o preparo sem solicitar permissão fora do gesto.
-    pushButton.onclick=()=>{pushButton.onclick=enablePush;void showPushPanel();};
+    pushButton.onclick=()=>{pushButton.onclick=enablePush;
+$("test-push").onclick=async()=>{
+  const button=$("test-push");
+  button.disabled=true;
+  notice("Enviando aviso de teste para seus dispositivos autorizados...");
+  try{
+    await ensureToken();
+    const response=await fetch(BASE+"/functions/v1/notify-fazenda-lead",{
+      method:"POST",
+      headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},
+      body:JSON.stringify({action:"test"}),
+      cache:"no-store"
+    });
+    const data=await response.json().catch(()=>null);
+    if(!response.ok)throw Error("Servidor respondeu "+response.status+": "+(data?.error||"falha não identificada")+".");
+    const accepted=Number(data?.accepted||0),devices=Number(data?.recipients||0);
+    if(devices===0)notice("Nenhum iPhone inscrito nesta conta. Ative as notificações primeiro.");
+    else if(accepted===0)notice("O servidor tentou enviar "+devices+" aviso(s), mas a Apple não aceitou. Diagnóstico: "+JSON.stringify(data?.failures||[]));
+    else notice("A Apple aceitou "+accepted+" aviso(s) de teste. Confira as notificações do iPhone, inclusive na Tela Bloqueada.");
+  }catch(error){pushError(error,"teste de envio");}
+  finally{button.disabled=false;}
+};
+void showPushPanel();};
   }
 }
 function enablePush(){
