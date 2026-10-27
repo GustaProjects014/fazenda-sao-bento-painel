@@ -17,7 +17,10 @@ jobs:
         with:
           node-version: '22'
       - name: Validar JavaScript
-        run: node --check admin.js
+        run: |
+          node --check admin.js
+          node --check leads/app.js
+          node --check leads/sw.js
       - name: Verificar arquivos de entrada
         run: |
           test -s index.html
@@ -26,9 +29,15 @@ jobs:
           grep -q 'src="./admin.js"' index.html
           grep -q 'href="./admin.css"' index.html
           grep -q 'noindex,nofollow' index.html
+          test -s leads/index.html
+          test -s leads/app.js
+          test -s leads/style.css
+          test -s leads/manifest.webmanifest
+          test -s leads/sw.js
+          grep -q 'src="./app.js"' leads/index.html
       - name: Verificar ausência de credenciais privadas
         run: |
-          if grep -En '(SUPABASE_SERVICE_ROLE_KEY|CVCRM_TOKEN|sk_live_[A-Za-z0-9]+)' index.html admin.js admin.css; then
+          if grep -En '(SUPABASE_SERVICE_ROLE_KEY|CVCRM_TOKEN|sk_live_[A-Za-z0-9]+)' index.html admin.js admin.css leads/index.html leads/app.js leads/sw.js; then
             echo 'Encontrada referência suspeita a um segredo.'
             exit 1
           fi
