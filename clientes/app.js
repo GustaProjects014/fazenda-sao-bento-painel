@@ -15,51 +15,127 @@ $("login-form").addEventListener("submit",async e=>{e.preventDefault();notice("E
 $("logout").onclick=exit;$("refresh").onclick=()=>load().catch(e=>notice(e.message));$("search").oninput=render;
 $("tab-leads").onclick=()=>{ $("leads-panel").hidden=false;$("push-panel").hidden=true;$("tab-leads").classList.add("active");$("tab-push").classList.remove("active")};
 $("tab-push").onclick=()=>{ $("leads-panel").hidden=true;$("push-panel").hidden=false;$("tab-push").classList.add("active");$("tab-leads").classList.remove("active")};
-$("enable-push").onclick=async()=>{
-  let step="verificação inicial";
+// O Web Push no iOS exige que subscribe() seja chamado diretamente pelo toque.
+// Toda a comunicação e registro do service worker são preparados antes do clique.
+let pushReady=null,pushPreparation=null;
+const pushButton=$("enable-push");
+function pushError(error,step){
+  const raw=error instanceof Error?error.message:String(error);
+  const message=raw==="Load failed"||raw==="Failed to fetch"
+    ?"Não foi possível conectar ao servidor. Verifique a internet."
+    :raw==="The string did not match the expected pattern."
+      ?"O Safari rejeitou um parâmetro da inscrição. Confirme a instalação na Tela de Início e a configuração VAPID."
+      :raw;
+  notice("Falha na etapa: "+step+". "+message);
+}
+function vapidBytes(value){
+  const pub=String(value||"").trim();
+  if(!/^[A-Za-z0-9_-]{86,88}$/.test(pub))
+    throw Error("A chave VAPID pública é inválida. Não copie o resumo SHA256 (Digest) exibido em Secrets.");
+  let data;
   try{
-    if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)) throw Error("Instale o painel pela opção Adicionar à Tela de Início no Safari e abra pelo ícone.");
-    await ensureToken();
-    step="consulta ao servidor";notice("Verificando configuração do Supabase...");
-    const r=await fetch(BASE+"/functions/v1/notify-fazenda-lead",{headers:{apikey:KEY},cache:"no-store"});
-    if(!r.ok)throw Error("Servidor de notificações retornou HTTP "+r.status+".");
-    const cfg=await r.json();
-    if(!cfg.configured||!cfg.publicKey)throw Error("As chaves VAPID precisam ser configuradas no Supabase.");
-    step="validação da chave VAPID";
-    const pub=String(cfg.publicKey).trim();
-    if(!/^[A-Za-z0-9_-]{86,88}$/.test(pub))throw Error("A chave FAZENDA_VAPID_PUBLIC_KEY parece inválida. Use a chave pública VAPID original, não o SHA256/Digest mostrado no painel Secrets.");
-    let key;
-    try{
-      const raw=atob(pub.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-pub.length%4)%4));
-      key=Uint8Array.from(raw,c=>c.charCodeAt(0));
-    }catch{throw Error("A chave pública VAPID não está em formato Base64URL válido.")}
-    if(key.length!==65||key[0]!==4)throw Error("A chave pública VAPID não corresponde a uma chave EC P-256 de 65 bytes. Gere um par VAPID válido e configure ambas as chaves no Supabase.");
-    step="registro do serviço no iPhone";notice("Preparando notificações no iPhone...");
-    await navigator.serviceWorker.register("./sw.js",{scope:"./"});
-    const sw=await navigator.serviceWorker.ready;
-    step="permissão do iPhone";
-    const permission=await Notification.requestPermission();
-    if(permission!=="granted")throw Error("Permissão não concedida. Verifique as notificações do aplicativo nos Ajustes do iPhone.");
-    step="inscrição Web Push";notice("Registrando este iPhone...");
-    const existing=await sw.pushManager.getSubscription();
-    let subscription=existing;
+    const binary=atob(pub.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-pub.length%4)%4));
+    data=Uint8Array.from(binary,c=>c.charCodeAt(0));
+  }catch{throw Error("A chave VAPID precisa estar no formato Base64URL.");}
+  if(data.length!==65||data[0]!==4)
+    throw Error("A chave VAPID não é uma chave pública P-256 válida (65 bytes).");
+  return data;
+}
+async function preparePush(){
+  if(pushReady)return pushReady;
+  if(pushPreparation)return pushPreparation;
+  pushPreparation=(async()=>{
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window))
+      throw Error("No iPhone, abra o painel pelo ícone adicionado à Tela de Início, não por uma aba do Safari.");
+    const response=await fetch(BASE+"/functions/v1/notify-fazenda-lead",
+      {headers:{apikey:KEY},cache:"no-store"});
+    if(!response.ok)throw Error("A função de notificações retornou HTTP "+response.status+".");
+    const data=await response.json();
+    if(!data.configured||!data.publicKey)
+      throw Error("As chaves de envio ainda não estão habilitadas no Supabase.");
+    const key=vapidBytes(data.publicKey);
+    const registration=await navigator.serviceWorker.register("./sw.js?v=20261027-3",
+      {scope:"./",updateViaCache:"none"});
+    const ready=await navigator.serviceWorker.ready;
+    if(!ready.active)throw Error("O serviço de notificações não ficou ativo.");
+    let existing=await registration.pushManager.getSubscription();
     if(existing){
-      const storedKey=existing.options.applicationServerKey;
-      const actual=storedKey?new Uint8Array(storedKey):null;
-      if(!actual||actual.length!==key.length||actual.some((b,i)=>b!==key[i])){await existing.unsubscribe();subscription=null;}
+      const prev=existing.options?.applicationServerKey;
+      const bytes=prev?new Uint8Array(prev):null;
+      if(!bytes||bytes.length!==key.length||bytes.some((b,i)=>b!==key[i])){
+        await existing.unsubscribe();
+        existing=null;
+      }
     }
-    if(!subscription)subscription=await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
-    step="validação do login";
-    const usr=await fetch(BASE+"/auth/v1/user",{headers:authHeaders()});
-    if(!usr.ok)throw Error("Sessão expirada. Saia e entre novamente.");
-    const user=await usr.json();
-    step="salvamento no Supabase";notice("Salvando autorização no Supabase...");
-    const j=subscription.toJSON();
-    await api("lead_push_subscriptions?on_conflict=endpoint",{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({user_id:user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh,auth_key:j.keys?.auth})});
-    notice("Notificações ativadas neste iPhone. Faça um cadastro de teste para confirmar o recebimento.");
-  }catch(e){
-    const message=e instanceof Error?e.message:String(e);
-    notice("Falha em "+step+": "+(message==="Load failed"||message==="Failed to fetch"?"conexão indisponível. Verifique a internet e tente novamente.":message==="The string did not match the expected pattern."||message==="A string não correspondeu ao padrão esperado."?"o Safari rejeitou um parâmetro Web Push. Verifique a chave VAPID e a instalação na Tela de Início.":message));
+    pushReady={registration,key,existing};
+    return pushReady;
+  })();
+  try{return await pushPreparation;}catch(error){pushPreparation=null;throw error;}
+}
+async function showPushPanel(){
+  $("leads-panel").hidden=true;$("push-panel").hidden=false;
+  $("tab-push").classList.add("active");$("tab-leads").classList.remove("active");
+  pushButton.disabled=true;
+  pushButton.textContent="Preparando notificações...";
+  notice("Conferindo as configurações do iPhone e do Supabase...");
+  try{
+    await preparePush();
+    pushButton.disabled=false;
+    pushButton.textContent="Ativar notificações neste iPhone";
+    notice("Configuração pronta. Toque no botão para autorizar as notificações.");
+  }catch(error){
+    pushButton.textContent="Tentar preparar novamente";
+    pushButton.disabled=false;
+    pushReady=null;
+    pushError(error,"preparação");
+    // O botão passa a repetir o preparo sem solicitar permissão fora do gesto.
+    pushButton.onclick=()=>{pushButton.onclick=enablePush;void showPushPanel();};
   }
-};
+}
+function enablePush(){
+  const config=pushReady;
+  if(!config){notice("Abra a aba Notificações e aguarde a preparação terminar.");return;}
+  if(Notification.permission==="denied"){
+    notice("As notificações estão bloqueadas. Habilite em Ajustes do iPhone → Notificações → São Bento Leads.");
+    return;
+  }
+  // Nenhum await ou fetch antes de subscribe(): o gesto é preservado no Safari.
+  let subscriptionPromise;
+  try{
+    subscriptionPromise=config.existing
+      ?Promise.resolve(config.existing)
+      :config.registration.pushManager.subscribe({
+        userVisibleOnly:true,applicationServerKey:config.key
+      });
+  }catch(error){pushError(error,"inscrição do iPhone");return;}
+  pushButton.disabled=true;
+  notice("Aguardando a autorização do iPhone...");
+  (async()=>{
+    let step="autorização Web Push";
+    try{
+      const subscription=await subscriptionPromise;
+      if(!subscription?.endpoint)throw Error("O iPhone não forneceu uma inscrição válida.");
+      step="verificação da sessão";
+      await ensureToken();
+      const response=await fetch(BASE+"/auth/v1/user",{headers:authHeaders()});
+      if(!response.ok)throw Error("Sua sessão expirou. Entre novamente no painel.");
+      const user=await response.json();
+      step="salvamento no Supabase";
+      notice("Registrando este dispositivo no Supabase...");
+      const obj=subscription.toJSON();
+      await api("lead_push_subscriptions?on_conflict=endpoint",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify({
+          user_id:user.id,endpoint:obj.endpoint,
+          p256dh:obj.keys?.p256dh,auth_key:obj.keys?.auth
+        })
+      });
+      config.existing=subscription;
+      notice("Notificações ativadas neste iPhone! Faça um cadastro de teste para verificar o aviso.");
+    }catch(error){pushError(error,step);}finally{pushButton.disabled=false;}
+  })();
+}
+$("tab-push").onclick=()=>{void showPushPanel();};
+pushButton.onclick=enablePush;
 (async()=>{try{const s=JSON.parse(sessionStorage.getItem("fsb_clients_auth")||"null");if(s)await enter(s)}catch(e){exit();notice("Faça login para acessar os cadastros.")}})();
