@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 let session=null,leads=[],refreshTimer=null;
 function notice(v){$("message").textContent=v||""}
 function authHeaders(extra={}){return{apikey:KEY,Authorization:"Bearer "+session.access_token,...extra}}
-async function api(path,opt={}){const r=await fetch(BASE+"/rest/v1/"+path,{...opt,headers:authHeaders(opt.headers)});if(!r.ok)throw Error("Falha na consulta ao Supabase ("+r.status+").");return r.status===204?null:r.json()}
+async function api(path,opt={}){const r=await fetch(BASE+"/rest/v1/"+path,{...opt,headers:authHeaders(opt.headers)});if(!r.ok)throw Error("Falha na consulta ao Supabase ("+r.status+").");const body=await r.text();if(!body.trim())return null;try{return JSON.parse(body)}catch{throw Error("Resposta inesperada do Supabase (HTTP "+r.status+").")}}
 async function token(grant,data){const r=await fetch(BASE+"/auth/v1/token?grant_type="+grant,{method:"POST",headers:{apikey:KEY,"Content-Type":"application/json"},body:JSON.stringify(data)});if(!r.ok)throw Error("Não foi possível autenticar.");const s=await r.json();return{access_token:s.access_token,refresh_token:s.refresh_token,expires_at:Date.now()+Number(s.expires_in||3600)*1000}}
 async function validAdmin(){const x=await api("lead_panel_admins?select=user_id&limit=1");if(!x.length)throw Error("Conta sem autorização para consultar os cadastros.")}
 async function enter(s){session=s;await validAdmin();sessionStorage.setItem("fsb_clients_auth",JSON.stringify(session));$("login").hidden=true;$("dashboard").hidden=false;$("logout").hidden=false;await load();clearInterval(refreshTimer);refreshTimer=setInterval(()=>{if(!document.hidden)load().catch(()=>{});},30000)}
