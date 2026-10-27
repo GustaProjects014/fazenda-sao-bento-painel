@@ -33,4 +33,40 @@ function tab(name){$("tab-leads").classList.toggle("active",name==="leads");$("t
 $("tab-leads").addEventListener("click",()=>tab("leads"));$("tab-alerts").addEventListener("click",()=>tab("alerts"));
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.session)void load(true);});
 (async()=>{const old=decodeSession();if(old){saveSession(old);try{await start();}catch{logout();}}})();
+const vapidPublicKey="BDhGcmquac1B1xc5DFZTgxKYBziS-5vj0Y9xWAZrTdVMrK6rPkH4yseVEVs8Ra7buX4B0MnY0nx1_-Cqgthwf8A";
+function pushMessage(text,isError=false){const el=$("push-status");el.textContent=text;el.style.color=isError?"#a03933":"#1f5a42";}
+function decodeVapid(value){const padded=(value+"=".repeat((4-value.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(padded),ch=>ch.charCodeAt(0));}
+$("enable-push").addEventListener("click",async()=>{
+  const btn=$("enable-push");
+  if(!state.session){pushMessage("Faça login novamente para ativar as notificações.",true);return;}
+  if(!("Notification" in window)||!("serviceWorker" in navigator)||!("PushManager" in window)){
+    pushMessage("Este aparelho não oferece notificações push neste modo. No iPhone, abra o app pelo ícone da Tela de Início.",true);return;
+  }
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isInstalled=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+  if(isIOS&&!isInstalled){pushMessage("Primeiro abra no Safari, toque em Compartilhar → Adicionar à Tela de Início e execute o aplicativo pelo ícone.",true);return;}
+  btn.disabled=true;
+  try {
+    // No iPhone, a permissão deve ser solicitada diretamente após o toque.
+    const permission=await Notification.requestPermission();
+    if(permission!=="granted")throw Error("As notificações não foram permitidas. Autorize nos Ajustes do iPhone.");
+    pushMessage("Registrando este iPhone...");
+    const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./"});
+    await navigator.serviceWorker.ready;
+    let subscription=await registration.pushManager.getSubscription();
+    if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decodeVapid(vapidPublicKey)});
+    const json=subscription.toJSON();
+    if(!json.endpoint||!json.keys?.p256dh||!json.keys?.auth)throw Error("Não foi possível registrar o dispositivo.");
+    const access=await auth();
+    const userResponse=await fetch(api+"/auth/v1/user",{headers:{apikey,Authorization:"Bearer "+access}});
+    if(!userResponse.ok)throw Error("Confirme o seu acesso no painel.");
+    const user=await userResponse.json();
+    if(!user.id)throw Error("Não foi possível identificar o administrador.");
+    await request("lead_push_subscriptions?on_conflict=endpoint",{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:user.id,endpoint:json.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth})});
+    pushMessage("Notificações ativadas! Este iPhone foi cadastrado para receber avisos dos novos interessados.");
+    notice("🔔 iPhone cadastrado para notificações.");
+    btn.textContent="Notificações ativadas ✓";
+  }catch(e){pushMessage(e instanceof Error?e.message:"Não foi possível ativar as notificações.",true);}
+  finally{btn.disabled=false;}
+});
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(()=>{}));}
