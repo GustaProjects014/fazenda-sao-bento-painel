@@ -15,5 +15,51 @@ $("login-form").addEventListener("submit",async e=>{e.preventDefault();notice("E
 $("logout").onclick=exit;$("refresh").onclick=()=>load().catch(e=>notice(e.message));$("search").oninput=render;
 $("tab-leads").onclick=()=>{ $("leads-panel").hidden=false;$("push-panel").hidden=true;$("tab-leads").classList.add("active");$("tab-push").classList.remove("active")};
 $("tab-push").onclick=()=>{ $("leads-panel").hidden=true;$("push-panel").hidden=false;$("tab-push").classList.add("active");$("tab-leads").classList.remove("active")};
-$("enable-push").onclick=async()=>{try{if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window))throw Error("No iPhone, instale pela opção Adicionar à Tela de Início e abra pelo ícone.");await ensureToken();notice("Configurando notificações...");const r=await fetch(BASE+"/functions/v1/notify-fazenda-lead",{headers:{apikey:KEY},cache:"no-store"});if(!r.ok)throw Error("Serviço de notificações indisponível.");const cfg=await r.json();if(!cfg.configured||!cfg.publicKey)throw Error("Chaves VAPID ainda não disponíveis no servidor.");await navigator.serviceWorker.register("./sw.js",{scope:"./"});const sw=await navigator.serviceWorker.ready;const permission=await Notification.requestPermission();if(permission!=="granted")throw Error("Permissão de notificações não concedida.");const raw=atob(cfg.publicKey.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-cfg.publicKey.length%4)%4));const key=Uint8Array.from(raw,c=>c.charCodeAt(0));const subscription=await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});const j=subscription.toJSON();const usr=await fetch(BASE+"/auth/v1/user",{headers:authHeaders()});if(!usr.ok)throw Error("Sessão expirada.");const user=await usr.json();await api("lead_push_subscriptions?on_conflict=endpoint",{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({user_id:user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh,auth_key:j.keys?.auth})});notice("Notificações ativadas neste aparelho.")}catch(e){const message=e instanceof Error?e.message:String(e);notice(message==="Load failed"||message==="Failed to fetch"?"Falha na comunicação com o Supabase. Atualize a página e tente novamente. Se continuar, verifique a conexão e envie esta mensagem.":message)}};
+$("enable-push").onclick=async()=>{
+  let step="verificação inicial";
+  try{
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)) throw Error("Instale o painel pela opção Adicionar à Tela de Início no Safari e abra pelo ícone.");
+    await ensureToken();
+    step="consulta ao servidor";notice("Verificando configuração do Supabase...");
+    const r=await fetch(BASE+"/functions/v1/notify-fazenda-lead",{headers:{apikey:KEY},cache:"no-store"});
+    if(!r.ok)throw Error("Servidor de notificações retornou HTTP "+r.status+".");
+    const cfg=await r.json();
+    if(!cfg.configured||!cfg.publicKey)throw Error("As chaves VAPID precisam ser configuradas no Supabase.");
+    step="validação da chave VAPID";
+    const pub=String(cfg.publicKey).trim();
+    if(!/^[A-Za-z0-9_-]{86,88}$/.test(pub))throw Error("A chave FAZENDA_VAPID_PUBLIC_KEY parece inválida. Use a chave pública VAPID original, não o SHA256/Digest mostrado no painel Secrets.");
+    let key;
+    try{
+      const raw=atob(pub.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-pub.length%4)%4));
+      key=Uint8Array.from(raw,c=>c.charCodeAt(0));
+    }catch{throw Error("A chave pública VAPID não está em formato Base64URL válido.")}
+    if(key.length!==65||key[0]!==4)throw Error("A chave pública VAPID não corresponde a uma chave EC P-256 de 65 bytes. Gere um par VAPID válido e configure ambas as chaves no Supabase.");
+    step="registro do serviço no iPhone";notice("Preparando notificações no iPhone...");
+    await navigator.serviceWorker.register("./sw.js",{scope:"./"});
+    const sw=await navigator.serviceWorker.ready;
+    step="permissão do iPhone";
+    const permission=await Notification.requestPermission();
+    if(permission!=="granted")throw Error("Permissão não concedida. Verifique as notificações do aplicativo nos Ajustes do iPhone.");
+    step="inscrição Web Push";notice("Registrando este iPhone...");
+    const existing=await sw.pushManager.getSubscription();
+    let subscription=existing;
+    if(existing){
+      const storedKey=existing.options.applicationServerKey;
+      const actual=storedKey?new Uint8Array(storedKey):null;
+      if(!actual||actual.length!==key.length||actual.some((b,i)=>b!==key[i])){await existing.unsubscribe();subscription=null;}
+    }
+    if(!subscription)subscription=await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+    step="validação do login";
+    const usr=await fetch(BASE+"/auth/v1/user",{headers:authHeaders()});
+    if(!usr.ok)throw Error("Sessão expirada. Saia e entre novamente.");
+    const user=await usr.json();
+    step="salvamento no Supabase";notice("Salvando autorização no Supabase...");
+    const j=subscription.toJSON();
+    await api("lead_push_subscriptions?on_conflict=endpoint",{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({user_id:user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh,auth_key:j.keys?.auth})});
+    notice("Notificações ativadas neste iPhone. Faça um cadastro de teste para confirmar o recebimento.");
+  }catch(e){
+    const message=e instanceof Error?e.message:String(e);
+    notice("Falha em "+step+": "+(message==="Load failed"||message==="Failed to fetch"?"conexão indisponível. Verifique a internet e tente novamente.":message==="The string did not match the expected pattern."||message==="A string não correspondeu ao padrão esperado."?"o Safari rejeitou um parâmetro Web Push. Verifique a chave VAPID e a instalação na Tela de Início.":message));
+  }
+};
 (async()=>{try{const s=JSON.parse(sessionStorage.getItem("fsb_clients_auth")||"null");if(s)await enter(s)}catch(e){exit();notice("Faça login para acessar os cadastros.")}})();
