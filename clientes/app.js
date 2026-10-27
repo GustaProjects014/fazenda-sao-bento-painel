@@ -41,6 +41,16 @@ function vapidBytes(value){
     throw Error("A chave VAPID não é uma chave pública P-256 válida (65 bytes).");
   return data;
 }
+function pushServerError(code){
+  const explanations={
+    invalid_private_key:"A chave privada VAPID no Supabase não é válida. É necessário colocar a chave privada original (não o Digest/SHA256) do mesmo par usado para cadastrar os iPhones.",
+    invalid_public_key:"A chave pública VAPID no Supabase é inválida. Confira se é a chave original do par e não o Digest/SHA256.",
+    invalid_contact:"O contato VAPID está inválido. Use um e-mail completo no segredo FAZENDA_VAPID_CONTACT.",
+    vapid_setup_rejected:"O servidor rejeitou a configuração VAPID. Confira as chaves e o contato no Supabase.",
+    "Push not configured":"Falta alguma configuração de notificações no Supabase."
+  };
+  return explanations[code]||null;
+}
 async function preparePush(){
   if(pushReady)return pushReady;
   if(pushPreparation)return pushPreparation;
@@ -52,7 +62,7 @@ async function preparePush(){
     if(!response.ok)throw Error("A função de notificações retornou HTTP "+response.status+".");
     const data=await response.json();
     if(!data.configured||!data.publicKey)
-      throw Error("As chaves de envio ainda não estão habilitadas no Supabase.");
+      throw Error(pushServerError(data.setupIssue)||"As chaves de envio ainda não estão habilitadas no Supabase.");
     const key=vapidBytes(data.publicKey);
     const registration=await navigator.serviceWorker.register("./sw.js?v=20261027-3",
       {scope:"./",updateViaCache:"none"});
@@ -152,7 +162,7 @@ $("test-push").onclick=async()=>{
       cache:"no-store"
     });
     const data=await response.json().catch(()=>null);
-    if(!response.ok)throw Error("Servidor respondeu "+response.status+": "+(data?.error||"falha não identificada")+".");
+    if(!response.ok)throw Error(pushServerError(data?.error)||"Servidor respondeu "+response.status+": "+(data?.error||"falha não identificada")+".");
     const accepted=Number(data?.accepted||0),devices=Number(data?.recipients||0);
     if(devices===0)notice("Nenhum iPhone inscrito nesta conta. Ative as notificações primeiro.");
     else if(accepted===0)notice("O servidor tentou enviar "+devices+" aviso(s), mas a Apple não aceitou. Diagnóstico: "+JSON.stringify(data?.failures||[]));
